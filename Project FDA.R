@@ -26,11 +26,11 @@ tray_fitted <- eval.fd(time_seq, funct_tray)
 
 # Plotting fitted data and actual data points
 plot(time_seq, tray_fitted, type='l', ylim=c(-0.5, 4.5), xlab='Years', ylab='Fitted')
-points(time_seq, x, col='red')
+points(time_seq, tray_fitted, col='red')
 
 # Define a Fourier basis for modeling temperature trends
 four_basis<-create.fourier.basis(rangeval = c(2000,2021), nbasis=4, period = 22)
-funct_tray <- Data2fd(argvals = time_seq, y = x, basisobj = four_basis)
+funct_tray <- Data2fd(argvals = time_seq, y = tray_fitted, basisobj = four_basis)
 tray_fitted <- eval.fd(time_seq, funct_tray)
 
 # Plotting fitted data and actual data points
