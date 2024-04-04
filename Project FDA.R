@@ -8,47 +8,87 @@ data_frame <- data_frame[,-1]
 df <- data_frame
 # Convert the data frame to a matrix and transpose it
 dataonly <- t(as.matrix(df))
+
+time_seq <- seq(2000, 2021, 1)
 # Close any open graphical devices
-dev.off()
+#dev.off()
 # Plot the change in temperature data using matplot
-matplot(dataonly, type='l', lty=1, xlab='Years', ylab='Percent of Change in Temprature', main='Trends of changes in Temprature - EU')
+matplot(x = time_seq, y = df, type='l', lty=1, xlab='Years', ylab='Percent of Change in C', main='% of Changes in Temprature')
 
 # Create a B-spline basis for modeling changes in temperature trends
-defbasisTray <- create.bspline.basis(c(2000, 2021), norder=4)
+defbasisTray <- create.bspline.basis(c(2000, 2021), norder=11)
 plot(defbasisTray)
 
-# Evaluate the fitted temperature data at given time points
+# Evaluate the fitted temperature data at given time points for country with index of 5
 time_seq <- seq(2000, 2021, 1)
 t_dataonly = t(dataonly)
-matrix_t_dataonly = as.matrix(t_dataonly[,10])
+matrix_t_dataonly = as.matrix(t_dataonly[,5])
 funct_tray <- Data2fd(argvals = time_seq, y = matrix_t_dataonly, basisobj = defbasisTray)
+tray_fitted <- eval.fd(time_seq, funct_tray)
+
+# Set up plotting parameters to display all plots in one pane
+par(mfrow = c(1, 1))
+
+# Plotting fitted data and actual data points in one pane
+plot(time_seq, tray_fitted, type='l', ylim=c(-0.5, 4.5), xlab='Years', ylab='Fitted')
+points(time_seq, t_dataonly[,5], col='blue', pch=20)  
+
+# This section will present you with impact of the number of orders on fitting curve
+# 
+# # Define the range of norder values
+# norder_values <- 3:11
+# 
+# # Create a for loop to iterate over each norder value
+# for (norder in norder_values) {
+#   # Create basis with current norder value
+#   defbasisTray <- create.bspline.basis(c(2000, 2021), norder = norder)
+#   
+#   # Evaluate the fitted temperature data at given time points for country with index of 5
+#   time_seq <- seq(2000, 2021, 1)
+#   t_dataonly <- t(dataonly)
+#   matrix_t_dataonly <- as.matrix(t_dataonly[,5])
+#   funct_tray <- Data2fd(argvals = time_seq, y = matrix_t_dataonly, basisobj = defbasisTray)
+#   tray_fitted <- eval.fd(time_seq, funct_tray)
+#   
+#   # Set up plotting parameters to display each plot in a separate pane
+#   par(mfrow = c(1, 1))
+#   
+#   # Plot fitted data and actual data points in each pane
+#   plot(time_seq, tray_fitted, type = 'l', ylim = c(-0.5, 4.5), xlab = 'Years', ylab = 'Fitted')
+#   points(time_seq, t_dataonly[,5], col = 'blue', pch = 20)
+#   
+#   # Add title indicating the current value of norder
+#   title(main = paste("norder =", norder))
+# }
+
+
+# Define a Fourier basis for modeling temperature trends
+four_basis<-create.fourier.basis(rangeval = c(2000,2021), nbasis=4, period = 22)
+funct_tray <- Data2fd(argvals = time_seq, y = matrix_t_dataonly, basisobj = four_basis)
 tray_fitted <- eval.fd(time_seq, funct_tray)
 
 # Plotting fitted data and actual data points
 plot(time_seq, tray_fitted, type='l', ylim=c(-0.5, 4.5), xlab='Years', ylab='Fitted')
-points(time_seq, tray_fitted, col='red')
+points(time_seq, matrix_t_dataonly, col='red')
+title(main = "Fourier basis with nbasis = 4")
 
-# Define a Fourier basis for modeling temperature trends
-four_basis<-create.fourier.basis(rangeval = c(2000,2021), nbasis=4, period = 22)
-funct_tray <- Data2fd(argvals = time_seq, y = tray_fitted, basisobj = four_basis)
-tray_fitted <- eval.fd(time_seq, funct_tray)
 
-# Plotting fitted data and actual data points
-plot(time_seq, tray_fitted[1:22], type='l', ylim=c(-0.5, 4.5), xlab='Years', ylab='Fitted')
-points(time_seq, t_dataonly[1:22], col='green')
-
-# Create a B-spline basis with specified parameters
+# Create a B-spline basis with lambda penalty term
 norder = 6
 nbasis = 22 + norder - 2
 temp_basis = create.bspline.basis(c(2000,2021),
                                    nbasis, norder, time_seq)
-temp_fdPar = fdPar(temp_basis, Lfdobj = 4 ,lambda = 0.5)
-temp_smooth = smooth.basis(time_seq, t_dataonly,temp_fdPar)
+temp_fdPar = fdPar(temp_basis, Lfdobj = 4 ,lambda = 5)
+temp_smooth = smooth.basis(time_seq, matrix_t_dataonly,temp_fdPar)
+
 #extract the estimated functional data
 temp_fd=temp_smooth$fd 
 # Evaluate the fitted temperature data at given time points
 temp_fitted<-eval.fd(time_seq,temp_fd)
-matplot(time_seq, temp_fitted, type='l', lty=1, pch='o', xlab='time_seq',ylab='Temp Change')
+matplot(time_seq, temp_fitted, type='l', lty=1, pch='o',ylim=c(-0.5, 4.5), xlab='Years',ylab='Fitted')
+points(time_seq, matrix_t_dataonly, col='purple',pch=20)
+title(main = "Fourier basis with nbasis = 4, and lambda = 5")
+
 
 # Calculate the second derivative (acceleration) of the smoothed temperature data
 accelfdUN = deriv.fd(temp_fd, 2)
@@ -57,60 +97,61 @@ accelmeanfdUN = rowMeans(accel)
 #join the mean to the data matrix
 a=cbind(accel, accelmeanfdUN) 
 # Plot the acceleration data
-matplot(time_seq, a, type='l', lty=1, pch='o', xlab='time_seq',ylab='Acceleration', col=c(rep(3,38),1), ylim=c(-2,2))
+matplot(time_seq, a, type='l', lty=1, pch='o', xlab='Years',ylab='Acceleration/Second Derivative', col=c(rep(3,38),1), ylim=c(-2,2))
+title(main = "Acceleration of the Estimated Curve")
 
-# Identify landmarks (maxima and minima) within a specific time range
-temp_fine= seq(2000,2021,len=22)
-accel=eval.fd(temp_fine,accelfdUN)
-#temp_fine[6]=2005 and temp_fine[16]=2015: components
-#will be our time extremes of interest to identify landmarks
-#initialize vectors for the location of maxima and minima
-landmax=rep(0,38) 
-landmin=rep(0,38)
-for (i in c(1:38)){
-  landmax[i]=which.max(accel[c(6:16),i])+5
-  landmin[i]=which.min(accel[c(6:16),i])+5
+
+landmark_registration <- function(lambda, norder, a,b,c) {
+  # Define time sequence
+  basis = norder
+  time_seq <- seq(2000, 2021, len = 22)
+  nbasis <- 22 + norder - 2
+  temp_basis <- create.bspline.basis(c(2000, 2021), nbasis, norder, time_seq)
+  temp_fdPar <- fdPar(temp_basis, Lfdobj = 4, lambda = lambda)
+  temp_smooth <- smooth.basis(time_seq, t_dataonly, temp_fdPar)
+  temp_fd <- temp_smooth$fd 
+  temp_fitted <- eval.fd(time_seq, temp_fd)
+  accelfdUN <- deriv.fd(temp_fd, 2)
+  accel <- eval.fd(time_seq, accelfdUN)
+  for (i in c(1:38)){
+    landmax[i]=which.max(accel[c(a:b),i])+c
+    landmin[i]=which.min(accel[c(a:b),i])+c
+  }
+  meanaccel <- rowMeans(accel)
+  landmax0 <- which.max(meanaccel[a:b]) + c
+  landmin0 <- which.min(meanaccel[a:b]) + c
+  land_i <- cbind(time_seq[landmax], time_seq[landmin]) 
+  land_0 <- c(time_seq[landmax0], time_seq[landmin0]) 
+  wbasisLM <- create.bspline.basis(c(2000, 2021), basis, 4, c(2000 , time_seq[landmax0],time_seq[landmin0], 2021))
+  WfdLM <- fd(matrix(0, basis, 1), wbasisLM)
+  WfdParLM <- fdPar(WfdLM, 1, 0.5) 
+  accelreg <- landmarkreg(accelfdUN, ximarks = land_i, x0marks = land_0, WfdPar = WfdParLM)
+  return(accelreg)
 }
 
-meanaccel=rowMeans(accel)
-landmax0=which.max(meanaccel[c(6:16)])
-landmin0=which.min(meanaccel[c(6:16)])
+result <- landmark_registration(lambda = 4, norder = 6, 2,17,3)
 
-# Matrix of landmarks of data
-land_i=cbind(temp_fine[landmax],temp_fine[landmin]) 
-# Landmarks of target
-land_0=c(temp_fine[landmax0],temp_fine[landmin0]) 
+accelreg = result
 
-# Create a basis for warping
-basss = 6
-wbasisLM=create.bspline.basis(c(2000,2021),basss, 4, c(2000,temp_fine[landmin0],temp_fine[landmax0],2021))
-
-# To be used as initial guess in the landmark registration
-WfdLM = fd(matrix(0,basss,1),wbasisLM)
-# Smoothing with a penalty of order 1
-WfdParLM = fdPar(WfdLM,1,0.5) 
-
-# Apply landmarkreg
-accelreg=landmarkreg(accelfdUN,ximarks=land_i,x0marks=land_0,WfdPar=WfdParLM)
 accelregfd=eval.fd(temp_fine,accelreg$regfd)
 accelmeanreg = rowMeans(accelregfd)
 
 # Plot the data and the new mean
 a=cbind(accelregfd, accelmeanreg) 
 matplot(temp_fine, a, type='l', lty=1, pch='o', 
-        xlab='Years',ylab='acceleration', 
-        main='landmark registration', col=c(rep(3,38),1), 
-        ylim=c(-1,1))
+        xlab='Years',ylab='Acceleration', 
+        main='Landmark Registration', col=c(rep(3,38),1), 
+        ylim=c(-1.5,1))
 # Plot the warping function
 warpfd=accelreg$warpfd
 warpval=eval.fd(temp_fine,warpfd)
 plot(temp_fine,warpval[,1],type = 'l', col='blue', xlab='Years',
-     ylab='h(Years)', main='warping function')
-lines(temp_fine,temp_fine,type='l',col='grey')
+     ylab='h(Years)', main='Warping function')
+lines(temp_fine,temp_fine,type='l',col='red')
 
 ##################
-
-wbasisCR = create.bspline.basis(c(2000,2021),15, 5)
+temp_smooth <- smooth.basis(time_seq, t_dataonly, temp_fdPar)
+wbasisCR = create.bspline.basis(c(2000,2021), 15,4)
 # Initialize with a set of null functions
 Wfd0CR = fd(matrix(0,15,1),wbasisCR) 
 # Use a penalty of order 1 but with lambda=1
@@ -120,18 +161,19 @@ target=mean.fd(temp_smooth$fd)
 regList = register.fd(target,temp_smooth$fd, WfdParCR)
 regfd=eval.fd(time_seq,regList$regfd)
 meanreg = rowMeans(regfd)
+
 # Plot the data and the new mean
 a=cbind(regfd, meanreg) 
 matplot(time_seq, a, type='l', lty=1, pch='o',
-        xlab='Years',ylab='registered Temp', 
-        main='continuous registration', col=c(rep(3,38),1))
+        xlab='Years',ylab='Acceleration', 
+        main='Continuous Registration', col=c(rep(3,38),1))
 
 # Get the warping function from continuous registration
 warpfd1=regList$warpfd
 warpval1=eval.fd(time_seq,warpfd1)
 plot(time_seq,warpval1[,1],type = 'l', col='blue', xlab='Years',
-     ylab='h(Years)', main='warping function')
-lines(time_seq,time_seq,type='l',col='grey')
+     ylab='h(Years)', main='Warping function')
+lines(time_seq,time_seq,type='l',col='red')
 
 
 # Perform PCA on the registered temperature data
@@ -186,8 +228,9 @@ annual_prod.fit3 <- model_freg_prod$yhatfdobj
 plot(model_freg_prod$betaestlist[[2]], xlab="Years",
      ylab="Beta for temperature", main='Regression with input setup')
 # Plot the data and the fit
-plot(annual_prod.fit3, annual_prod, type="p", pch="o", xlab='Predicted y', ylab='Observed y')
+plot(annual_prod.fit3, annual_prod, type="p", pch=20, col = "red", xlab='Predicted y', ylab='Observed y')
 lines(annual_prod.fit3, annual_prod.fit3)
+
 
 # Let's assess the quality of fit
 annual_prodhat1 = model_freg_prod$yhatfdobj
@@ -255,7 +298,6 @@ wilcox.test(D_arctic,D_other)
 
 
 # FANOVA
-
 Years=c(2000:2021) 
 matplot(Years,tempav,type='l', lty=1, pch='o', xlab='Years',ylab='Temperature', main='Temperature profile for t')
 
@@ -348,6 +390,7 @@ yhatmat <- eval.fd(time_range, yhatfdobj)
 ymat <- eval.fd(time_range, Yearstempfd) 
 tempresmat <- ymat[,1:39] - yhatmat[,1:39] 
 SigmaE <- var(t(tempresmat))
+
 # Plot estimated coefficients with a 2-standard errors confidence band
 par(mfrow=c(1,1)) 
 stddevE <- sqrt(diag(SigmaE)) 
